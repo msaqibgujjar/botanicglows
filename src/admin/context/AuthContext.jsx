@@ -18,20 +18,21 @@ export const AuthProvider = ({ children }) => {
             localStorage.setItem('bg_admin_session', JSON.stringify(admin));
         } else {
             localStorage.removeItem('bg_admin_session');
+            localStorage.removeItem('bg_admin_token');
         }
     }, [admin]);
 
-    const login = async (username, password) => {
+    const login = async (email, password) => {
         setLoading(true);
         try {
-            const result = await authenticateAdmin(username, password);
+            const result = await authenticateAdmin(email, password);
             if (result) {
-                setAdmin({ username: result.username, role: result.role });
+                setAdmin({ username: result.name || result.email, email: result.email, role: result.role });
                 return { success: true };
             }
-            return { success: false, error: 'Invalid username or password' };
+            return { success: false, error: 'Invalid email or password' };
         } catch {
-            return { success: false, error: 'Login failed' };
+            return { success: false, error: 'Login failed. Is the backend server running?' };
         } finally {
             setLoading(false);
         }

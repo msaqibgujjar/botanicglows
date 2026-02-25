@@ -1,40 +1,298 @@
-import { products as seedProducts } from '../../data/products.js';
+// ─── API Configuration ────────────────────────────────────
+const API_BASE = 'http://localhost:5000/api';
 
-// ─── Helpers ──────────────────────────────────────────────
-const store = (key) => ({
-    getAll() {
-        return JSON.parse(localStorage.getItem(key) || '[]');
-    },
-    setAll(data) {
-        localStorage.setItem(key, JSON.stringify(data));
-    },
-    getById(id) {
-        return this.getAll().find((i) => String(i.id) === String(id));
-    },
-    create(item) {
-        const all = this.getAll();
-        item.id = Date.now();
-        all.push(item);
-        this.setAll(all);
-        return item;
-    },
-    update(id, updates) {
-        let all = this.getAll();
-        all = all.map((i) => (String(i.id) === String(id) ? { ...i, ...updates } : i));
-        this.setAll(all);
-        return this.getById(id);
-    },
-    remove(id) {
-        const all = this.getAll().filter((i) => String(i.id) !== String(id));
-        this.setAll(all);
-    },
-});
+const getToken = () => localStorage.getItem('bg_admin_token');
 
-// ─── Stores ───────────────────────────────────────────────
-export const productStore = store('bg_admin_products');
-export const orderStore = store('bg_admin_orders');
-export const customerStore = store('bg_admin_customers');
-export const blogStore = store('bg_admin_blog');
+const api = async (endpoint, options = {}) => {
+    const token = getToken();
+    const headers = { ...options.headers };
+
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    // Don't set Content-Type for FormData (browser sets it with boundary)
+    if (!(options.body instanceof FormData)) {
+        headers['Content-Type'] = 'application/json';
+    }
+
+    const res = await fetch(`${API_BASE}${endpoint}`, { ...options, headers });
+    const data = await res.json();
+
+    if (!res.ok) {
+        throw new Error(data.message || 'API request failed');
+    }
+    return data;
+};
+
+// ─── Auth ─────────────────────────────────────────────────
+export async function authenticateAdmin(email, password) {
+    try {
+        const data = await api('/admin/auth/login', {
+            method: 'POST',
+            body: JSON.stringify({ email, password }),
+        });
+        if (data.success) {
+            localStorage.setItem('bg_admin_token', data.token);
+            return data.admin;
+        }
+        return null;
+    } catch (error) {
+        console.error('Login error:', error.message);
+        return null;
+    }
+}
+
+export async function changeAdminPassword(currentPassword, newPassword) {
+    try {
+        const data = await api('/admin/auth/password', {
+            method: 'PUT',
+            body: JSON.stringify({ currentPassword, newPassword }),
+        });
+        if (data.token) {
+            localStorage.setItem('bg_admin_token', data.token);
+        }
+        return data.success;
+    } catch (error) {
+        console.error('Password change error:', error.message);
+        throw error;
+    }
+}
+
+export async function addAdminUser(name, email, password, role = 'Admin') {
+    try {
+        const data = await api('/admin/auth/register', {
+            method: 'POST',
+            body: JSON.stringify({ name, email, password, role }),
+        });
+        return data.success ? data.admin : null;
+    } catch (error) {
+        console.error('Add admin error:', error.message);
+        return null;
+    }
+}
+
+// ─── Product Store ────────────────────────────────────────
+export const productStore = {
+    async getAll() {
+        try {
+            const data = await api('/admin/products?limit=100');
+            return data.data || [];
+        } catch { return []; }
+    },
+    async getById(id) {
+        try {
+            const data = await api(`/admin/products/${id}`);
+            return data.data || null;
+        } catch { return null; }
+    },
+    async create(item) {
+        const data = await api('/admin/products', {
+            method: 'POST',
+            body: JSON.stringify(item),
+        });
+        return data.data;
+    },
+    async update(id, updates) {
+        const data = await api(`/admin/products/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(updates),
+        });
+        return data.data;
+    },
+    async remove(id) {
+        await api(`/admin/products/${id}`, { method: 'DELETE' });
+    },
+};
+
+// ─── Category Helpers ─────────────────────────────────────
+export async function fetchCategories() {
+    try {
+        const data = await api('/admin/products/categories/all');
+        return data.data || [];
+    } catch { return []; }
+}
+
+// Legacy fallback for pages that import `categories` directly
+export const categories = ['Moisturizers', 'Serums', 'Cleansers', 'Masks', 'Toners', 'Lip Care', 'Body Care'];
+
+// ─── Order Store ──────────────────────────────────────────
+export const orderStore = {
+    async getAll() {
+        try {
+            const data = await api('/admin/orders?limit=100');
+            return (data.data || []).map(normalizeOrder);
+        } catch { return []; }
+    },
+    async getById(id) {
+        try {
+            const data = await api(`/admin/orders/${id}`);
+            return data.data ? normalizeOrder(data.data) : null;
+        } catch { return null; }
+    },
+    async update(id, updates) {
+        const data = await api(`/admin/orders/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(updates),
+        });
+        return data.data ? normalizeOrder(data.data) : null;
+    },
+};
+
+// Normalize backend order shape to match what the frontend expects
+function normalizeOrder(o) {
+    return {
+        id: o._id || o.id,
+        customer: o.customerName || o.customer,
+        email: o.customerEmail || o.email,
+        phone: o.customerPhone || o.phone,
+        items: (o.items || []).map((it) => ({
+            ...it,
+            id: it.product || it.id,
+            name: it.name,
+            price: it.price,
+            quantity: it.quantity,
+        })),
+        total: o.totalAmount || o.total,
+        status: o.orderStatus || o.status,
+        paymentMethod: o.paymentMethod,
+        paymentStatus: o.paymentStatus || 'Pending',
+        date: o.createdAt || o.date,
+        address: o.shippingAddress
+            ? `${o.shippingAddress.street}, ${o.shippingAddress.city}`
+            : (o.address || ''),
+        trackingNumber: o.trackingNumber || '',
+    };
+}
+
+// ─── Customer Store ───────────────────────────────────────
+export const customerStore = {
+    async getAll() {
+        try {
+            const data = await api('/admin/customers?limit=100');
+            return (data.data || []).map(normalizeCustomer);
+        } catch { return []; }
+    },
+    async getById(id) {
+        try {
+            const data = await api(`/admin/customers/${id}`);
+            return data.data ? normalizeCustomer(data.data) : null;
+        } catch { return null; }
+    },
+    async toggleBlock(id) {
+        const data = await api(`/admin/customers/${id}/block`, { method: 'PUT' });
+        return data.data ? normalizeCustomer(data.data) : null;
+    },
+    async remove(id) {
+        await api(`/admin/customers/${id}`, { method: 'DELETE' });
+    },
+    async getOrders(id) {
+        try {
+            const data = await api(`/admin/customers/${id}/orders`);
+            return data.data || [];
+        } catch { return []; }
+    },
+};
+
+function normalizeCustomer(c) {
+    return {
+        id: c._id || c.id,
+        name: c.name,
+        email: c.email,
+        phone: c.phone || '',
+        orders: c.totalOrders || 0,
+        totalSpent: c.totalSpent || 0,
+        status: c.isBlocked ? 'Blocked' : 'Active',
+        joinDate: c.createdAt ? new Date(c.createdAt).toISOString().split('T')[0] : '',
+    };
+}
+
+// ─── Blog Store ───────────────────────────────────────────
+export const blogStore = {
+    async getAll() {
+        try {
+            const data = await api('/admin/content/blog');
+            return (data.data || []).map(normalizeBlog);
+        } catch { return []; }
+    },
+    async create(item) {
+        const data = await api('/admin/content/blog', {
+            method: 'POST',
+            body: JSON.stringify(item),
+        });
+        return data.data ? normalizeBlog(data.data) : data.data;
+    },
+    async update(id, updates) {
+        const data = await api(`/admin/content/blog/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(updates),
+        });
+        return data.data ? normalizeBlog(data.data) : data.data;
+    },
+    async remove(id) {
+        await api(`/admin/content/blog/${id}`, { method: 'DELETE' });
+    },
+};
+
+function normalizeBlog(b) {
+    return {
+        id: b._id || b.id,
+        title: b.title,
+        content: b.content,
+        image: b.image || '',
+        date: b.createdAt ? new Date(b.createdAt).toISOString().split('T')[0] : b.date,
+        status: b.status || 'Draft',
+    };
+}
+
+// ─── Content Store (Homepage, FAQ) ────────────────────────
+export const contentStore = {
+    async get() {
+        try {
+            const [homepage, faq] = await Promise.all([
+                api('/admin/content/homepage'),
+                api('/admin/content/faq'),
+            ]);
+            const h = homepage.data?.data || {};
+            const f = faq.data?.data || {};
+            return {
+                heroTitle: h.heroTitle || 'Unlock Your Natural Glow',
+                heroSubtitle: h.heroSubtitle || '',
+                aboutText: h.aboutText || '',
+                faqItems: f.items || [],
+            };
+        } catch {
+            return {
+                heroTitle: 'Unlock Your Natural Glow',
+                heroSubtitle: '',
+                aboutText: '',
+                faqItems: [],
+            };
+        }
+    },
+    async save(data) {
+        await Promise.all([
+            api('/admin/content/homepage', {
+                method: 'PUT',
+                body: JSON.stringify({ data: { heroTitle: data.heroTitle, heroSubtitle: data.heroSubtitle, aboutText: data.aboutText } }),
+            }),
+            api('/admin/content/faq', {
+                method: 'PUT',
+                body: JSON.stringify({ data: { items: data.faqItems } }),
+            }),
+        ]);
+    },
+};
+
+// ─── Settings Store ──────────────────────────────────────
+const defaultSettings = {
+    shippingRate: 5.99,
+    freeShippingThreshold: 50,
+    taxRate: 8,
+    socialLinks: { instagram: '', facebook: '', twitter: '' },
+    paymentMethods: { creditCard: true, jazzCash: false, easyPaisa: false, cashOnDelivery: true },
+};
+
 export const settingsStore = {
     get() {
         return JSON.parse(localStorage.getItem('bg_admin_settings') || 'null') || defaultSettings;
@@ -43,179 +301,37 @@ export const settingsStore = {
         localStorage.setItem('bg_admin_settings', JSON.stringify(data));
     },
 };
-export const contentStore = {
-    get() {
-        return JSON.parse(localStorage.getItem('bg_admin_content') || 'null') || defaultContent;
-    },
-    save(data) {
-        localStorage.setItem('bg_admin_content', JSON.stringify(data));
-    },
-};
 
-// ─── Seed data ────────────────────────────────────────────
-const statuses = ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled'];
-
-const defaultSettings = {
-    shippingRate: 5.99,
-    freeShippingThreshold: 50,
-    taxRate: 8,
-    socialLinks: { instagram: '', facebook: '', twitter: '' },
-    paymentMethods: {
-        creditCard: true,
-        jazzCash: false,
-        easyPaisa: false,
-        cashOnDelivery: true,
-    },
-};
-
-const defaultContent = {
-    heroTitle: 'Unlock Your Natural Glow',
-    heroSubtitle: 'Experience the power of organic botanical skincare designed to nourish, repair, and illuminate your skin.',
-    aboutText: 'At Botanic Glows, we believe that true beauty comes from nature.',
-    faqItems: [
-        { q: 'Are your products organic?', a: 'Yes, all our products use 100% certified organic ingredients.' },
-        { q: 'What is your return policy?', a: 'We offer a 30-day hassle-free return policy on all products.' },
-        { q: 'Do you ship internationally?', a: 'Yes, we ship to over 30 countries worldwide.' },
-    ],
-};
-
-function seedIfEmpty() {
-    // Products
-    if (productStore.getAll().length === 0) {
-        const prods = seedProducts.map((p, i) => ({
-            ...p,
-            stock: 20 + i * 5,
-            status: 'Active',
-            discount: 0,
-            ingredients: 'Natural botanical extracts, vitamin E, hyaluronic acid',
-        }));
-        productStore.setAll(prods);
-    }
-
-    // Orders
-    if (orderStore.getAll().length === 0) {
-        const names = ['Ayesha Khan', 'Ali Raza', 'Sara Ahmed', 'Usman Malik', 'Fatima Noor', 'Hassan Sheikh', 'Zainab Qureshi', 'Bilal Tariq'];
-        const cities = ['Lahore', 'Karachi', 'Islamabad', 'Faisalabad', 'Rawalpindi'];
-        const orders = [];
-        const prods = productStore.getAll();
-        for (let i = 0; i < 12; i++) {
-            const items = prods.slice(i % 3, (i % 3) + 2).map((p) => ({ ...p, quantity: 1 + (i % 3) }));
-            const total = items.reduce((s, it) => s + it.price * it.quantity, 0);
-            orders.push({
-                id: 1000 + i,
-                customer: names[i % names.length],
-                email: `${names[i % names.length].toLowerCase().replace(' ', '.')}@email.com`,
-                phone: `+92 300 ${String(1234567 + i * 111).slice(0, 7)}`,
-                items,
-                total: +total.toFixed(2),
-                status: statuses[i % 5],
-                date: new Date(Date.now() - i * 86400000 * 2).toISOString(),
-                address: `${100 + i} Main Street, ${cities[i % cities.length]}`,
-                trackingNumber: i < 4 ? `BG${100000 + i}` : '',
-                paymentMethod: i % 2 === 0 ? 'Credit Card' : 'Cash on Delivery',
-            });
-        }
-        orderStore.setAll(orders);
-    }
-
-    // Customers
-    if (customerStore.getAll().length === 0) {
-        const customers = [
-            { id: 1, name: 'Ayesha Khan', email: 'ayesha.khan@email.com', phone: '+92 300 1234567', orders: 3, totalSpent: 145.00, status: 'Active', joinDate: '2025-11-15' },
-            { id: 2, name: 'Ali Raza', email: 'ali.raza@email.com', phone: '+92 301 2345678', orders: 2, totalSpent: 98.00, status: 'Active', joinDate: '2025-12-01' },
-            { id: 3, name: 'Sara Ahmed', email: 'sara.ahmed@email.com', phone: '+92 302 3456789', orders: 5, totalSpent: 312.50, status: 'Active', joinDate: '2025-10-20' },
-            { id: 4, name: 'Usman Malik', email: 'usman.malik@email.com', phone: '+92 303 4567890', orders: 1, totalSpent: 45.00, status: 'Active', joinDate: '2026-01-05' },
-            { id: 5, name: 'Fatima Noor', email: 'fatima.noor@email.com', phone: '+92 304 5678901', orders: 4, totalSpent: 210.00, status: 'Blocked', joinDate: '2025-09-10' },
-        ];
-        customerStore.setAll(customers);
-    }
-
-    // Blog
-    if (blogStore.getAll().length === 0) {
-        blogStore.setAll([
-            { id: 1, title: '5 Benefits of Botanical Skincare', content: 'Discover why botanical ingredients are revolutionizing the beauty industry...', image: 'https://images.unsplash.com/photo-1556228578-0d85b1a4d571?w=600', date: '2026-01-15', status: 'Published' },
-            { id: 2, title: 'Morning Skincare Routine Guide', content: 'Start your day right with this simple yet effective skincare routine...', image: 'https://images.unsplash.com/photo-1598440947619-2c35fc9aa908?w=600', date: '2026-01-28', status: 'Published' },
-            { id: 3, title: 'Understanding Your Skin Type', content: 'Learn how to identify your skin type and choose the right products...', image: 'https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?w=600', date: '2026-02-10', status: 'Draft' },
-        ]);
+// ─── Dashboard Stats ──────────────────────────────────────
+export async function getStats() {
+    try {
+        const data = await api('/admin/dashboard/stats');
+        const d = data.data;
+        return {
+            totalOrders: d.totalOrders,
+            totalRevenue: +d.totalRevenue.toFixed(2),
+            totalProducts: d.totalProducts,
+            lowStockAlerts: d.lowStockProducts,
+            recentOrders: (d.recentOrders || []).map(normalizeOrder),
+        };
+    } catch {
+        return { totalOrders: 0, totalRevenue: 0, totalProducts: 0, lowStockAlerts: 0, recentOrders: [] };
     }
 }
 
-// Run seeding on import
-seedIfEmpty();
+export async function getWeeklySales() {
+    try {
+        const data = await api('/admin/dashboard/sales?period=weekly');
+        const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const salesByDay = days.map(() => 0);
 
-// ─── Stats helpers ────────────────────────────────────────
-export function getStats() {
-    const orders = orderStore.getAll();
-    const products = productStore.getAll();
-    const totalRevenue = orders
-        .filter((o) => o.status !== 'Cancelled')
-        .reduce((s, o) => s + o.total, 0);
-    const lowStock = products.filter((p) => p.stock < 10).length;
+        (data.data || []).forEach((item) => {
+            const date = new Date(item._id.year, item._id.month - 1, item._id.day);
+            salesByDay[date.getDay()] = item.revenue;
+        });
 
-    return {
-        totalOrders: orders.length,
-        totalRevenue: +totalRevenue.toFixed(2),
-        totalProducts: products.length,
-        lowStockAlerts: lowStock,
-    };
-}
-
-export function getWeeklySales() {
-    const orders = orderStore.getAll().filter((o) => o.status !== 'Cancelled');
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const salesByDay = days.map(() => 0);
-    orders.forEach((o) => {
-        const day = new Date(o.date).getDay();
-        salesByDay[day] += o.total;
-    });
-    return days.map((d, i) => ({ day: d, amount: +salesByDay[i].toFixed(2) }));
-}
-
-// ─── Admin Auth ───────────────────────────────────────────
-const ADMIN_KEY = 'bg_admin_users';
-
-function initAdmins() {
-    if (!localStorage.getItem(ADMIN_KEY)) {
-        // Default admin — password: admin123
-        localStorage.setItem(
-            ADMIN_KEY,
-            JSON.stringify([
-                { id: 1, username: 'admin', passwordHash: '240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9', role: 'Super Admin' },
-            ])
-        );
+        return days.map((d, i) => ({ day: d, amount: +salesByDay[i].toFixed(2) }));
+    } catch {
+        return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => ({ day: d, amount: 0 }));
     }
 }
-initAdmins();
-
-async function sha256(message) {
-    const msgBuffer = new TextEncoder().encode(message);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
-}
-
-export async function authenticateAdmin(username, password) {
-    const admins = JSON.parse(localStorage.getItem(ADMIN_KEY) || '[]');
-    const hash = await sha256(password);
-    const admin = admins.find((a) => a.username === username && a.passwordHash === hash);
-    return admin || null;
-}
-
-export async function changeAdminPassword(username, newPassword) {
-    const admins = JSON.parse(localStorage.getItem(ADMIN_KEY) || '[]');
-    const hash = await sha256(newPassword);
-    const updated = admins.map((a) => (a.username === username ? { ...a, passwordHash: hash } : a));
-    localStorage.setItem(ADMIN_KEY, JSON.stringify(updated));
-}
-
-export async function addAdminUser(username, password, role = 'Staff Admin') {
-    const admins = JSON.parse(localStorage.getItem(ADMIN_KEY) || '[]');
-    if (admins.find((a) => a.username === username)) return null;
-    const hash = await sha256(password);
-    const newAdmin = { id: Date.now(), username, passwordHash: hash, role };
-    admins.push(newAdmin);
-    localStorage.setItem(ADMIN_KEY, JSON.stringify(admins));
-    return newAdmin;
-}
-
-export const categories = ['Serums', 'Face Wash', 'Moisturizers', 'Oils', 'Treatments', 'Masks', 'Toners'];

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save } from 'lucide-react';
-import { productStore, categories } from '../services/adminData.js';
+import { Save, ArrowLeft } from 'lucide-react';
+import { productStore, fetchCategories, categories as fallbackCategories } from '../services/adminData.js';
 
 const ProductForm = () => {
     const { id } = useParams();
@@ -9,182 +9,156 @@ const ProductForm = () => {
     const isEdit = !!id;
 
     const [form, setForm] = useState({
-        name: '',
-        price: '',
-        category: 'Serums',
-        description: '',
-        ingredients: '',
-        image: '',
-        stock: '',
-        discount: 0,
-        status: 'Active',
-        rating: 0,
-        reviews: 0,
-        isNew: false,
-        isBestSeller: false,
+        name: '', description: '', price: '', category: '', stock: '',
+        discount: '0', ingredients: '', isActive: true, images: [],
     });
-    const [error, setError] = useState('');
+    const [categories, setCategories] = useState([]);
     const [success, setSuccess] = useState('');
+    const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        if (isEdit) {
-            const product = productStore.getById(id);
-            if (product) {
-                setForm({
-                    ...product,
-                    price: String(product.price),
-                    stock: String(product.stock),
-                    discount: product.discount || 0,
-                });
-            } else {
-                navigate('/admin/products');
+        const load = async () => {
+            // Load categories from API
+            const cats = await fetchCategories();
+            setCategories(cats.length > 0 ? cats : fallbackCategories.map((c, i) => ({ _id: `cat-${i}`, name: c })));
+
+            if (isEdit) {
+                const product = await productStore.getById(id);
+                if (product) {
+                    setForm({
+                        name: product.name || '',
+                        description: product.description || '',
+                        price: product.price || '',
+                        category: typeof product.category === 'object' ? product.category?._id : product.category,
+                        stock: product.stock || '',
+                        discount: product.discount || '0',
+                        ingredients: product.ingredients || '',
+                        isActive: product.isActive !== false,
+                        images: product.images || [],
+                    });
+                }
             }
-        }
-    }, [id, isEdit, navigate]);
+        };
+        load();
+    }, [id, isEdit]);
 
     const handleChange = (e) => {
         const { name, value, type, checked } = e.target;
-        setForm((prev) => ({
-            ...prev,
-            [name]: type === 'checkbox' ? checked : value,
-        }));
+        setForm((prev) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
-        setSuccess('');
 
-        if (!form.name || !form.price || !form.image || !form.stock) {
-            setError('Please fill in all required fields');
+        if (!form.name || !form.price || !form.category) {
+            setError('Name, price, and category are required');
             return;
         }
 
-        const data = {
-            ...form,
-            price: parseFloat(form.price),
-            stock: parseInt(form.stock, 10),
-            discount: parseInt(form.discount, 10) || 0,
-        };
+        setLoading(true);
+        try {
+            const data = {
+                name: form.name,
+                description: form.description,
+                price: parseFloat(form.price),
+                category: form.category,
+                stock: parseInt(form.stock) || 0,
+                discount: parseFloat(form.discount) || 0,
+                ingredients: form.ingredients,
+                isActive: form.isActive,
+                images: form.images,
+            };
 
-        if (isEdit) {
-            productStore.update(id, data);
-            setSuccess('Product updated successfully!');
-        } else {
-            productStore.create(data);
-            setSuccess('Product created successfully!');
+            if (isEdit) {
+                await productStore.update(id, data);
+                setSuccess('Product updated!');
+            } else {
+                await productStore.create(data);
+                setSuccess('Product created!');
+            }
             setTimeout(() => navigate('/admin/products'), 1000);
+        } catch (err) {
+            setError(err.message || 'Failed to save product');
+        } finally {
+            setLoading(false);
         }
     };
 
     return (
         <div>
             <div className="admin-page-header">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    <button className="admin-btn admin-btn-outline admin-btn-sm" onClick={() => navigate('/admin/products')}>
-                        <ArrowLeft size={16} />
-                    </button>
-                    <h1>{isEdit ? 'Edit Product' : 'Add New Product'}</h1>
-                </div>
+                <h1>{isEdit ? 'Edit Product' : 'Add Product'}</h1>
+                <button className="admin-btn admin-btn-outline" onClick={() => navigate('/admin/products')}>
+                    <ArrowLeft size={16} /> Back
+                </button>
             </div>
 
-            {error && <div className="admin-alert admin-alert-error">{error}</div>}
             {success && <div className="admin-alert admin-alert-success">{success}</div>}
+            {error && <div className="admin-alert admin-alert-error">{error}</div>}
 
-            <form onSubmit={handleSubmit}>
+            <form onSubmit={handleSubmit} className="admin-card">
                 <div className="admin-grid-2">
-                    <div className="admin-card">
-                        <h2 style={{ fontSize: '1rem', fontFamily: 'Inter, sans-serif', marginBottom: '1rem' }}>Product Information</h2>
-
-                        <div className="admin-form-group">
-                            <label>Product Name *</label>
-                            <input className="admin-input" name="name" value={form.name} onChange={handleChange} placeholder="Enter product name" />
-                        </div>
-
-                        <div className="admin-grid-2">
-                            <div className="admin-form-group">
-                                <label>Price ($) *</label>
-                                <input className="admin-input" name="price" type="number" step="0.01" value={form.price} onChange={handleChange} placeholder="0.00" />
-                            </div>
-                            <div className="admin-form-group">
-                                <label>Category</label>
-                                <select className="admin-input admin-select" name="category" value={form.category} onChange={handleChange}>
-                                    {categories.map((c) => <option key={c} value={c}>{c}</option>)}
-                                </select>
-                            </div>
-                        </div>
-
-                        <div className="admin-form-group">
-                            <label>Description</label>
-                            <textarea className="admin-input admin-textarea" name="description" value={form.description} onChange={handleChange} placeholder="Product description..." />
-                        </div>
-
-                        <div className="admin-form-group">
-                            <label>Ingredients</label>
-                            <textarea className="admin-input admin-textarea" name="ingredients" value={form.ingredients} onChange={handleChange} placeholder="List of ingredients..." />
-                        </div>
+                    <div className="admin-form-group">
+                        <label>Product Name *</label>
+                        <input className="admin-input" name="name" value={form.name} onChange={handleChange} placeholder="Product name" />
                     </div>
-
-                    <div>
-                        <div className="admin-card" style={{ marginBottom: '1.25rem' }}>
-                            <h2 style={{ fontSize: '1rem', fontFamily: 'Inter, sans-serif', marginBottom: '1rem' }}>Media & Stock</h2>
-
-                            <div className="admin-form-group">
-                                <label>Image URL *</label>
-                                <input className="admin-input" name="image" value={form.image} onChange={handleChange} placeholder="https://..." />
-                            </div>
-
-                            {form.image && (
-                                <div style={{ marginBottom: '1rem' }}>
-                                    <img src={form.image} alt="Preview" className="admin-image-preview-lg" />
-                                </div>
-                            )}
-
-                            <div className="admin-grid-2">
-                                <div className="admin-form-group">
-                                    <label>Stock *</label>
-                                    <input className="admin-input" name="stock" type="number" value={form.stock} onChange={handleChange} placeholder="0" />
-                                </div>
-                                <div className="admin-form-group">
-                                    <label>Discount (%)</label>
-                                    <input className="admin-input" name="discount" type="number" min="0" max="100" value={form.discount} onChange={handleChange} placeholder="0" />
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="admin-card">
-                            <h2 style={{ fontSize: '1rem', fontFamily: 'Inter, sans-serif', marginBottom: '1rem' }}>Status & Tags</h2>
-
-                            <div className="admin-form-group">
-                                <label>Status</label>
-                                <select className="admin-input admin-select" name="status" value={form.status} onChange={handleChange}>
-                                    <option value="Active">Active</option>
-                                    <option value="Inactive">Inactive</option>
-                                </select>
-                            </div>
-
-                            <div style={{ display: 'flex', gap: '2rem', marginTop: '0.5rem' }}>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', cursor: 'pointer' }}>
-                                    <input type="checkbox" name="isNew" checked={form.isNew} onChange={handleChange} />
-                                    New Arrival
-                                </label>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', cursor: 'pointer' }}>
-                                    <input type="checkbox" name="isBestSeller" checked={form.isBestSeller} onChange={handleChange} />
-                                    Best Seller
-                                </label>
-                            </div>
-                        </div>
+                    <div className="admin-form-group">
+                        <label>Price ($) *</label>
+                        <input className="admin-input" name="price" type="number" step="0.01" value={form.price} onChange={handleChange} placeholder="0.00" />
                     </div>
                 </div>
 
-                <div style={{ marginTop: '1.5rem', display: 'flex', gap: '0.75rem' }}>
-                    <button type="submit" className="admin-btn admin-btn-primary">
-                        <Save size={16} /> {isEdit ? 'Update Product' : 'Create Product'}
-                    </button>
-                    <button type="button" className="admin-btn admin-btn-outline" onClick={() => navigate('/admin/products')}>
-                        Cancel
-                    </button>
+                <div className="admin-form-group">
+                    <label>Description</label>
+                    <textarea className="admin-input admin-textarea" name="description" value={form.description} onChange={handleChange} placeholder="Product description..." />
                 </div>
+
+                <div className="admin-grid-2">
+                    <div className="admin-form-group">
+                        <label>Category *</label>
+                        <select className="admin-input admin-select" name="category" value={form.category} onChange={handleChange}>
+                            <option value="">Select Category</option>
+                            {categories.map((c) => (
+                                <option key={c._id || c} value={c._id || c}>{c.name || c}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="admin-form-group">
+                        <label>Stock</label>
+                        <input className="admin-input" name="stock" type="number" value={form.stock} onChange={handleChange} placeholder="0" />
+                    </div>
+                </div>
+
+                <div className="admin-grid-2">
+                    <div className="admin-form-group">
+                        <label>Discount (%)</label>
+                        <input className="admin-input" name="discount" type="number" min="0" max="100" value={form.discount} onChange={handleChange} />
+                    </div>
+                    <div className="admin-form-group">
+                        <label>Ingredients</label>
+                        <input className="admin-input" name="ingredients" value={form.ingredients} onChange={handleChange} placeholder="e.g., Vitamin E, Aloe Vera" />
+                    </div>
+                </div>
+
+                <div className="admin-form-group">
+                    <label>Image URL</label>
+                    <input className="admin-input" value={form.images[0] || ''} onChange={(e) => setForm((prev) => ({ ...prev, images: [e.target.value] }))} placeholder="https://..." />
+                    {form.images[0] && <img src={form.images[0]} alt="Preview" style={{ width: 100, height: 100, objectFit: 'cover', borderRadius: 8, marginTop: '0.5rem' }} />}
+                </div>
+
+                <div className="admin-form-group" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <label className="admin-toggle">
+                        <input type="checkbox" name="isActive" checked={form.isActive} onChange={handleChange} />
+                        <span className="admin-toggle-slider"></span>
+                    </label>
+                    <span>Active</span>
+                </div>
+
+                <button className="admin-btn admin-btn-primary" type="submit" disabled={loading}>
+                    <Save size={16} /> {loading ? 'Saving...' : isEdit ? 'Update Product' : 'Create Product'}
+                </button>
             </form>
         </div>
     );
