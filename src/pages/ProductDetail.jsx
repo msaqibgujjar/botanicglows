@@ -1,29 +1,51 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { products } from '../data/products';
+import { fetchProductById, fetchProducts } from '../services/api';
 import ProductCard from '../components/products/ProductCard';
 import Button from '../components/ui/Button';
 import { Star, Minus, Plus, Truck, RotateCcw, ShieldCheck } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useCart } from '../context/CartContext';
 
 const ProductDetail = () => {
     const { id } = useParams();
-    const product = products.find(p => p.id === parseInt(id));
+    const { addToCart } = useCart();
+    const [product, setProduct] = useState(null);
+    const [relatedProducts, setRelatedProducts] = useState([]);
     const [quantity, setQuantity] = useState(1);
     const [activeTab, setActiveTab] = useState('description');
+    const [loading, setLoading] = useState(true);
 
-    if (!product) {
-        return <div className="container" style={{ padding: '8rem 0' }}>Product not found</div>;
-    }
-
-    const relatedProducts = products
-        .filter(p => p.category === product.category && p.id !== product.id)
-        .slice(0, 3);
+    useEffect(() => {
+        const load = async () => {
+            setLoading(true);
+            const p = await fetchProductById(id);
+            setProduct(p);
+            if (p) {
+                const all = await fetchProducts();
+                setRelatedProducts(all.filter(r => r.category === p.category && r.id !== p.id).slice(0, 3));
+            }
+            setLoading(false);
+        };
+        load();
+    }, [id]);
 
     const handleQuantityChange = (type) => {
         if (type === 'inc') setQuantity(prev => prev + 1);
         if (type === 'dec' && quantity > 1) setQuantity(prev => prev - 1);
     };
+
+    const handleAddToCart = () => {
+        if (product) addToCart(product, quantity);
+    };
+
+    if (loading) {
+        return <div className="container" style={{ padding: '8rem 0', textAlign: 'center', color: 'var(--color-text-muted)' }}>Loading product...</div>;
+    }
+
+    if (!product) {
+        return <div className="container" style={{ padding: '8rem 0' }}>Product not found</div>;
+    }
 
     return (
         <div className="product-detail-page">
@@ -110,7 +132,7 @@ const ProductDetail = () => {
                                     <p>{product.description} Can be used mainly for {product.category.toLowerCase()}. Designed to bring out your natural glow with organic components.</p>
                                 )}
                                 {activeTab === 'ingredients' && (
-                                    <p>Aqua, Rosa Damascena Flower Water, Glycerin, Niacinamide, Sodium Hyaluronate, Vitamin C (L-Ascorbic Acid), Tocopherol (Vitamin E), Phenoxyethanol.</p>
+                                    <p>{product.ingredients || 'Aqua, Rosa Damascena Flower Water, Glycerin, Niacinamide, Sodium Hyaluronate, Vitamin C (L-Ascorbic Acid), Tocopherol (Vitamin E), Phenoxyethanol.'}</p>
                                 )}
                                 {activeTab === 'usage' && (
                                     <p>Apply 2-3 drops to clean skin morning and night. Massage gently until fully absorbed. Follow with moisturizer.</p>

@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { products } from '../data/products';
+import { fetchProducts, fetchCategories } from '../services/api';
 import ProductCard from '../components/products/ProductCard';
 import { SlidersHorizontal, ChevronDown } from 'lucide-react';
 
@@ -9,8 +9,20 @@ const Shop = () => {
     const categoryParam = searchParams.get('category');
     const [sortBy, setSortBy] = useState('popularity');
     const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+    const [products, setProducts] = useState([]);
+    const [categories, setCategories] = useState(['All']);
+    const [loading, setLoading] = useState(true);
 
-    const categories = ['All', 'Serums', 'Face Wash', 'Moisturizers', 'Oils', 'Treatments', 'Bundles'];
+    useEffect(() => {
+        const load = async () => {
+            setLoading(true);
+            const [prods, cats] = await Promise.all([fetchProducts(), fetchCategories()]);
+            setProducts(prods);
+            setCategories(['All', ...cats]);
+            setLoading(false);
+        };
+        load();
+    }, []);
 
     const activeCategory = categoryParam || 'All';
 
@@ -30,7 +42,7 @@ const Shop = () => {
             filtered = filtered.filter(p => p.category === activeCategory);
         }
         return filtered;
-    }, [activeCategory]);
+    }, [activeCategory, products]);
 
     const sortedProducts = useMemo(() => {
         return [...filteredProducts].sort((a, b) => {
@@ -79,7 +91,9 @@ const Shop = () => {
             </div>
 
             <div className="product-grid-section">
-                {sortedProducts.length > 0 ? (
+                {loading ? (
+                    <div style={{ textAlign: 'center', padding: '4rem 0', color: 'var(--color-text-muted)' }}>Loading products...</div>
+                ) : sortedProducts.length > 0 ? (
                     <div className="product-grid">
                         {sortedProducts.map(product => (
                             <ProductCard key={product.id} product={product} />
@@ -146,7 +160,7 @@ const Shop = () => {
                 .category-btn.active::after {
                     content: '';
                     position: absolute;
-                    bottom: -1rem; /* Aligns with border-bottom of shop-controls */
+                    bottom: -1rem;
                     left: 0;
                     width: 100%;
                     height: 2px;
