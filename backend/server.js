@@ -60,6 +60,7 @@ app.use('/api/admin/orders', require('./routes/orderRoutes'));
 app.use('/api/admin/customers', require('./routes/customerRoutes'));
 app.use('/api/admin/content', require('./routes/contentRoutes'));
 app.use('/api/payments', require('./routes/paymentRoutes'));
+app.use('/api/admin/shipping', require('./routes/shippingRoutes'));
 app.use('/api/public', require('./routes/publicRoutes'));
 
 // ─── Health Check ────────────────────────────────────────

@@ -79,3 +79,25 @@ export async function fetchBlogPosts() {
         return [];
     }
 }
+
+export async function fetchShippingCities() {
+    try {
+        const res = await fetch(`${API_BASE}/shipping/cities`);
+        const data = await res.json();
+        return data.success ? data.data : {};
+    } catch (err) {
+        console.error('Failed to fetch cities:', err);
+        return {};
+    }
+}
+
+export async function fetchShippingRate(province, city) {
+    try {
+        const res = await fetch(`${API_BASE}/shipping/rate?province=${encodeURIComponent(province)}&city=${encodeURIComponent(city)}`);
+        const data = await res.json();
+        return data.success ? data.data.rate : 0;
+    } catch (err) {
+        console.error('Failed to fetch shipping rate:', err);
+        return 0;
+    }
+}

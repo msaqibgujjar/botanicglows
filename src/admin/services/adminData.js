@@ -283,6 +283,36 @@ export const settingsStore = {
     },
 };
 
+// ─── Shipping Store ──────────────────────────────────────
+export const shippingStore = {
+    async getCities() {
+        try {
+            const data = await api('/admin/shipping/cities');
+            return data.data || {};
+        } catch { return {}; }
+    },
+    async getRates() {
+        try {
+            const data = await api('/admin/shipping');
+            return (data.data || []).map(r => ({ ...r, id: r._id }));
+        } catch { return []; }
+    },
+    async setRate(province, city, rate) {
+        const data = await api('/admin/shipping/rate', {
+            method: 'PUT',
+            body: JSON.stringify({ province, city, rate }),
+        });
+        return data.data;
+    },
+    async bulkUpdate(rates) {
+        const data = await api('/admin/shipping/bulk', {
+            method: 'PUT',
+            body: JSON.stringify({ rates }),
+        });
+        return data.data || [];
+    },
+};
+
 // ─── Dashboard Stats ──────────────────────────────────────
 export async function getStats() {
     try {

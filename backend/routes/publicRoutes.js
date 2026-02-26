@@ -74,4 +74,25 @@ router.get('/blog', async (req, res) => {
     }
 });
 
+// @route   GET /api/public/shipping/cities
+// @desc    Get Pakistan provinces and cities (public)
+router.get('/shipping/cities', (req, res) => {
+    const pakistanCities = require('../data/pakistanCities');
+    res.json({ success: true, data: pakistanCities });
+});
+
+// @route   GET /api/public/shipping/rate?province=X&city=Y
+// @desc    Get shipping rate for a city (public)
+router.get('/shipping/rate', async (req, res) => {
+    try {
+        const ShippingRate = require('../models/ShippingRate');
+        const { province, city } = req.query;
+        if (!province || !city) return res.json({ success: true, data: { rate: 0 } });
+        const sr = await ShippingRate.findOne({ province, city });
+        res.json({ success: true, data: { rate: sr ? sr.rate : 0 } });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
 module.exports = router;
