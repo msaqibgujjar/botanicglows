@@ -52,3 +52,30 @@ export async function fetchCategories() {
         return [];
     }
 }
+
+export async function fetchContent(type) {
+    try {
+        const res = await fetch(`${API_BASE}/content/${type}`);
+        const data = await res.json();
+        return data.success ? data.data : null;
+    } catch (err) {
+        console.error(`Failed to fetch ${type} content:`, err);
+        return null;
+    }
+}
+
+export async function fetchBlogPosts() {
+    try {
+        const res = await fetch(`${API_BASE}/blog`);
+        const data = await res.json();
+        if (!data.success) return [];
+        return data.data.map(p => ({
+            ...p,
+            id: p._id,
+            date: new Date(p.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
+        }));
+    } catch (err) {
+        console.error('Failed to fetch blog posts:', err);
+        return [];
+    }
+}

@@ -1,8 +1,15 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Button from '../components/ui/Button';
 import { Mail, MapPin, Phone } from 'lucide-react';
+import { fetchContent } from '../services/api';
 
 const Contact = () => {
+    const [data, setData] = useState({});
+
+    useEffect(() => {
+        fetchContent('contact').then(d => { if (d) setData(d); });
+    }, []);
+
     const handleSubmit = (e) => {
         e.preventDefault();
         alert('Message sent! (Mock)');
@@ -11,8 +18,8 @@ const Contact = () => {
     return (
         <div className="contact-page container">
             <div className="contact-header">
-                <h1>Get in Touch</h1>
-                <p>We'd love to hear from you. Our team is always here to help.</p>
+                <h1>{data.heroTitle || 'Get in Touch'}</h1>
+                <p>{data.heroSubtitle || "We'd love to hear from you."}</p>
             </div>
 
             <div className="contact-grid">
@@ -42,27 +49,26 @@ const Contact = () => {
                     <div className="info-card">
                         <div className="icon-box"><Mail size={24} /></div>
                         <h3>Email Us</h3>
-                        <p>hello@botanicglows.com</p>
-                        <p>support@botanicglows.com</p>
+                        <p>{data.email1 || 'hello@botanicglows.com'}</p>
+                        <p>{data.email2 || 'support@botanicglows.com'}</p>
                     </div>
                     <div className="info-card">
                         <div className="icon-box"><Phone size={24} /></div>
                         <h3>Call Us</h3>
-                        <p>+1 (555) 123-4567</p>
-                        <p>Mon-Fri, 9am - 6pm EST</p>
+                        <p>{data.phone || '+1 (555) 123-4567'}</p>
+                        <p>{data.phoneHours || 'Mon-Fri, 9am - 6pm EST'}</p>
                     </div>
                     <div className="info-card">
                         <div className="icon-box"><MapPin size={24} /></div>
                         <h3>Visit Us</h3>
-                        <p>123 Botanical Ave,</p>
-                        <p>New York, NY 10012</p>
+                        <p>{data.address1 || '123 Botanical Ave,'}</p>
+                        <p>{data.address2 || 'New York, NY 10012'}</p>
                     </div>
                 </div>
             </div>
 
             <div className="map-section">
-                {/* Mock Map */}
-                <div className="mock-map">
+                <div className="mock-map" style={{ backgroundImage: `url("${data.mapImage || 'https://images.unsplash.com/photo-1524661135-423995f22d0b?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80'}")` }}>
                     Google Map Placeholder
                 </div>
             </div>
@@ -148,7 +154,6 @@ const Contact = () => {
                     justify-content: center;
                     color: #999;
                     font-weight: 600;
-                    background-image: url("https://images.unsplash.com/photo-1524661135-423995f22d0b?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80");
                     background-size: cover;
                     background-position: center;
                 }

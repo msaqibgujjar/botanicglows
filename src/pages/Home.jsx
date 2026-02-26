@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowRight, Droplets, Leaf, Sun } from 'lucide-react';
-import { fetchProducts } from '../services/api';
+import { fetchProducts, fetchContent } from '../services/api';
 import ProductCard from '../components/products/ProductCard';
 import Button from '../components/ui/Button';
 import { Link } from 'react-router-dom';
 
-const Hero = () => (
+const Hero = ({ data }) => (
   <section className="hero">
     <div className="container hero-container">
       <motion.div
@@ -15,8 +15,8 @@ const Hero = () => (
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8 }}
       >
-        <h1>Unlock Your Natural Glow</h1>
-        <p>Experience the power of organic botanical skincare designed to nourish, repair, and illuminate your skin.</p>
+        <h1>{data.heroTitle || 'Unlock Your Natural Glow'}</h1>
+        <p>{data.heroSubtitle || 'Experience the power of organic botanical skincare.'}</p>
         <Link to="/shop">
           <Button variant="primary">Shop Collection</Button>
         </Link>
@@ -27,7 +27,7 @@ const Hero = () => (
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 1, delay: 0.2 }}
       >
-        <img src="https://images.unsplash.com/photo-1556228720-19777f987f62?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80" alt="Natural Skincare Products" />
+        <img src={data.heroImage || 'https://images.unsplash.com/photo-1556228720-19777f987f62?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80'} alt="Natural Skincare Products" />
       </motion.div>
     </div>
     <style>{`
@@ -87,28 +87,31 @@ const Hero = () => (
   </section>
 );
 
-const Features = () => (
-  <section className="features-section">
-    <div className="container">
-      <div className="features-grid">
-        <div className="feature-item">
-          <Leaf size={32} color="var(--color-primary)" />
-          <h3>100% Organic</h3>
-          <p>Sourced from sustainable farms.</p>
-        </div>
-        <div className="feature-item">
-          <Droplets size={32} color="var(--color-primary)" />
-          <h3>Deep Hydration</h3>
-          <p>Formulated for lasting moisture.</p>
-        </div>
-        <div className="feature-item">
-          <Sun size={32} color="var(--color-primary)" />
-          <h3>Cruelty Free</h3>
-          <p>Tested on humans, never animals.</p>
+const iconMap = { 0: Leaf, 1: Droplets, 2: Sun };
+
+const Features = ({ data }) => {
+  const features = data.features || [
+    { title: '100% Organic', text: 'Sourced from sustainable farms.' },
+    { title: 'Deep Hydration', text: 'Formulated for lasting moisture.' },
+    { title: 'Cruelty Free', text: 'Tested on humans, never animals.' },
+  ];
+  return (
+    <section className="features-section">
+      <div className="container">
+        <div className="features-grid">
+          {features.map((f, i) => {
+            const Icon = iconMap[i] || Leaf;
+            return (
+              <div className="feature-item" key={i}>
+                <Icon size={32} color="var(--color-primary)" />
+                <h3>{f.title}</h3>
+                <p>{f.text}</p>
+              </div>
+            );
+          })}
         </div>
       </div>
-    </div>
-    <style>{`
+      <style>{`
       .features-section {
         padding: 4rem 0;
         background-color: var(--color-secondary);
@@ -141,8 +144,9 @@ const Features = () => (
         }
       }
     `}</style>
-  </section>
-);
+    </section>
+  );
+};
 
 const FeaturedProducts = () => {
   const [featured, setFeatured] = useState([]);
@@ -189,16 +193,16 @@ const FeaturedProducts = () => {
   );
 };
 
-const AboutSection = () => (
+const AboutSection = ({ data }) => (
   <section className="about-section">
     <div className="container about-container">
       <div className="about-image">
-        <img src="https://images.unsplash.com/photo-1552693673-1bf958298935?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" alt="Natural Ingredients" />
+        <img src={data.aboutImage || 'https://images.unsplash.com/photo-1552693673-1bf958298935?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'} alt="Natural Ingredients" />
       </div>
       <div className="about-content">
-        <h2>Nature's Best Kept Secret</h2>
-        <p>At Botanic Glows, we believe that true beauty comes from nature. Our formulas are crafted with ethically sourced botanicals, free from harsh chemicals and synthetic fragrances.</p>
-        <p>We combine ancient herbal wisdom with modern dermatological science to create skincare that not only works but feels luxurious.</p>
+        <h2>{data.aboutTitle || "Nature's Best Kept Secret"}</h2>
+        <p>{data.aboutText1 || 'At Botanic Glows, we believe that true beauty comes from nature.'}</p>
+        <p>{data.aboutText2 || 'We combine ancient herbal wisdom with modern dermatological science.'}</p>
         <Link to="/about">
           <Button variant="outline">Our Story</Button>
         </Link>
@@ -240,29 +244,23 @@ const AboutSection = () => (
   </section>
 );
 
-const Testimonials = () => (
-  <section className="testimonials-section">
-    <div className="container">
-      <h2>Loved by Thousands</h2>
-      <div className="testimonials-grid">
-        <div className="testimonial-card">
-          <div className="stars">★★★★★</div>
-          <p>"The Glow Radiance Serum has completely transformed my skin. I've never felt more confident!"</p>
-          <h4>- Sarah M.</h4>
-        </div>
-        <div className="testimonial-card">
-          <div className="stars">★★★★★</div>
-          <p>"Finally, a natural brand that actually delivers results. The night oil is a game changer."</p>
-          <h4>- Jessica K.</h4>
-        </div>
-        <div className="testimonial-card">
-          <div className="stars">★★★★★</div>
-          <p>"I love the sustainable packaging and the clean ingredients. Botanic Glows is my new favorite."</p>
-          <h4>- Emily R.</h4>
+const Testimonials = ({ data }) => {
+  const testimonials = data.testimonials || [];
+  return (
+    <section className="testimonials-section">
+      <div className="container">
+        <h2>Loved by Thousands</h2>
+        <div className="testimonials-grid">
+          {testimonials.map((t, i) => (
+            <div className="testimonial-card" key={i}>
+              <div className="stars">★★★★★</div>
+              <p>"{t.text}"</p>
+              <h4>- {t.author}</h4>
+            </div>
+          ))}
         </div>
       </div>
-    </div>
-    <style>{`
+      <style>{`
       .testimonials-section {
         padding: 6rem 0;
         background-color: var(--color-secondary);
@@ -313,17 +311,26 @@ const Testimonials = () => (
         }
       }
     `}</style>
-  </section>
-);
+    </section>
+  );
+};
 
 const Home = () => {
+  const [content, setContent] = useState({});
+
+  useEffect(() => {
+    fetchContent('homepage').then(data => {
+      if (data) setContent(data);
+    });
+  }, []);
+
   return (
     <div className="home-page">
-      <Hero />
-      <Features />
+      <Hero data={content} />
+      <Features data={content} />
       <FeaturedProducts />
-      <AboutSection />
-      <Testimonials />
+      <AboutSection data={content} />
+      <Testimonials data={content} />
     </div>
   );
 };

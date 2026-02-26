@@ -1,7 +1,16 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { fetchContent } from '../services/api';
 
 const About = () => {
+    const [data, setData] = useState(null);
+
+    useEffect(() => {
+        fetchContent('about').then(d => { if (d) setData(d); });
+    }, []);
+
+    if (!data) return <div className="about-page container" style={{ paddingTop: '8rem', textAlign: 'center', color: 'var(--color-text-muted)' }}>Loading...</div>;
+
     return (
         <div className="about-page container">
             <motion.div
@@ -9,40 +18,28 @@ const About = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
             >
-                <h1>Our Story</h1>
-                <p>Rooted in nature, backed by science.</p>
+                <h1>{data.heroTitle || 'Our Story'}</h1>
+                <p>{data.heroSubtitle || 'Rooted in nature, backed by science.'}</p>
             </motion.div>
 
             <div className="about-content">
-                <div className="about-section">
-                    <img src="https://images.unsplash.com/photo-1556228720-19777f987f62?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" alt="Founder" />
-                    <div className="text text-right">
-                        <h2>The Beginning</h2>
-                        <p>Botanic Glows was born from a desire to create skincare that is as kind to the planet as it is to your skin. Founded in 2023, our mission has always been to harness the power of botanicals to reveal your natural radiance.</p>
+                {(data.sections || []).map((s, i) => (
+                    <div key={i} className={`about-section ${i % 2 === 1 ? 'reverse' : ''}`}>
+                        <img src={s.image} alt={s.title} />
+                        <div className="text">
+                            <h2>{s.title}</h2>
+                            <p>{s.text}</p>
+                        </div>
                     </div>
-                </div>
-
-                <div className="about-section reverse">
-                    <img src="https://images.unsplash.com/photo-1629198688000-71f23e745b6e?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" alt="Ingredients" />
-                    <div className="text">
-                        <h2>Our Philosophy</h2>
-                        <p>We believe in transparency and purity. Every ingredient is carefully selected for its efficacy and sustainability. No fillers, no harsh chemicals, just pure botanical goodness.</p>
-                    </div>
-                </div>
+                ))}
 
                 <div className="mission-values">
-                    <div className="value-card">
-                        <h3>Sustainability</h3>
-                        <p>Packaged in recyclable glass and responsibly sourced materials.</p>
-                    </div>
-                    <div className="value-card">
-                        <h3>Cruelty-Free</h3>
-                        <p>We never test on animals, and we never will.</p>
-                    </div>
-                    <div className="value-card">
-                        <h3>Community</h3>
-                        <p>Supporting local farmers and ethical supply chains.</p>
-                    </div>
+                    {(data.values || []).map((v, i) => (
+                        <div className="value-card" key={i}>
+                            <h3>{v.title}</h3>
+                            <p>{v.text}</p>
+                        </div>
+                    ))}
                 </div>
             </div>
 
@@ -74,7 +71,7 @@ const About = () => {
                     direction: rtl;
                 }
                 .about-section.reverse .text {
-                    direction: ltr; /* Reset text direction for content */
+                    direction: ltr;
                 }
                 .about-section img {
                     width: 100%;

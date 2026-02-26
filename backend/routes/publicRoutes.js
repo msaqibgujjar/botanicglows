@@ -50,4 +50,28 @@ router.get('/categories', async (req, res) => {
     }
 });
 
+// @route   GET /api/public/content/:type
+// @desc    Get page content (public - homepage, about, contact)
+router.get('/content/:type', async (req, res) => {
+    try {
+        const Content = require('../models/Content');
+        const content = await Content.findOne({ type: req.params.type });
+        res.json({ success: true, data: content ? content.data : {} });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// @route   GET /api/public/blog
+// @desc    Get published blog posts (public)
+router.get('/blog', async (req, res) => {
+    try {
+        const BlogPost = require('../models/BlogPost');
+        const posts = await BlogPost.find({ status: 'Published' }).sort('-createdAt');
+        res.json({ success: true, data: posts });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
 module.exports = router;

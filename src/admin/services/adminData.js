@@ -239,48 +239,29 @@ function normalizeBlog(b) {
         id: b._id || b.id,
         title: b.title,
         content: b.content,
+        excerpt: b.excerpt || '',
         image: b.image || '',
+        author: b.author || '',
         date: b.createdAt ? new Date(b.createdAt).toISOString().split('T')[0] : b.date,
         status: b.status || 'Draft',
     };
 }
 
-// ─── Content Store (Homepage, FAQ) ────────────────────────
+// ─── Content Store (per page type) ────────────────────────
 export const contentStore = {
-    async get() {
+    async get(type) {
         try {
-            const [homepage, faq] = await Promise.all([
-                api('/admin/content/homepage'),
-                api('/admin/content/faq'),
-            ]);
-            const h = homepage.data?.data || {};
-            const f = faq.data?.data || {};
-            return {
-                heroTitle: h.heroTitle || 'Unlock Your Natural Glow',
-                heroSubtitle: h.heroSubtitle || '',
-                aboutText: h.aboutText || '',
-                faqItems: f.items || [],
-            };
+            const data = await api(`/admin/content/${type}`);
+            return data.data?.data || {};
         } catch {
-            return {
-                heroTitle: 'Unlock Your Natural Glow',
-                heroSubtitle: '',
-                aboutText: '',
-                faqItems: [],
-            };
+            return {};
         }
     },
-    async save(data) {
-        await Promise.all([
-            api('/admin/content/homepage', {
-                method: 'PUT',
-                body: JSON.stringify({ data: { heroTitle: data.heroTitle, heroSubtitle: data.heroSubtitle, aboutText: data.aboutText } }),
-            }),
-            api('/admin/content/faq', {
-                method: 'PUT',
-                body: JSON.stringify({ data: { items: data.faqItems } }),
-            }),
-        ]);
+    async save(type, contentData) {
+        await api(`/admin/content/${type}`, {
+            method: 'PUT',
+            body: JSON.stringify({ data: contentData }),
+        });
     },
 };
 

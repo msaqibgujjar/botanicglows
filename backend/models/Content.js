@@ -5,7 +5,7 @@ const contentSchema = new mongoose.Schema({
         type: String,
         required: true,
         unique: true,
-        enum: ['homepage', 'about', 'faq', 'banners'],
+        enum: ['homepage', 'about', 'contact', 'faq', 'banners'],
     },
     data: {
         type: mongoose.Schema.Types.Mixed,

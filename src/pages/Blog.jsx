@@ -1,30 +1,14 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { fetchBlogPosts } from '../services/api';
 
 const Blog = () => {
-    const posts = [
-        {
-            id: 1,
-            title: "5 Steps to Glowing Skin",
-            excerpt: "Discover the simple routine that will transform your complexion naturally.",
-            date: "October 12, 2023",
-            image: "https://images.unsplash.com/photo-1556228578-0d85b1a4d571?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80"
-        },
-        {
-            id: 2,
-            title: "The Benefits of Rose Hip Oil",
-            excerpt: "Why this miracle ingredient should be a staple in your skincare arsenal.",
-            date: "September 28, 2023",
-            image: "https://images.unsplash.com/photo-1601049541289-9b3b7d5d71da?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80"
-        },
-        {
-            id: 3,
-            title: "Sustainable Beauty Guide",
-            excerpt: "How to make your beauty routine more eco-friendly and sustainable.",
-            date: "September 15, 2023",
-            image: "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80"
-        }
-    ];
+    const [posts, setPosts] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        fetchBlogPosts().then(data => { setPosts(data); setLoading(false); });
+    }, []);
 
     return (
         <div className="blog-page container">
@@ -33,21 +17,25 @@ const Blog = () => {
                 <p>Tips, guides, and stories for a beautiful life.</p>
             </div>
 
-            <div className="blog-grid">
-                {posts.map(post => (
-                    <article key={post.id} className="blog-card">
-                        <div className="blog-img">
-                            <img src={post.image} alt={post.title} />
-                        </div>
-                        <div className="blog-content">
-                            <span className="blog-date">{post.date}</span>
-                            <h3>{post.title}</h3>
-                            <p>{post.excerpt}</p>
-                            <Link to="#" className="read-more">Read More →</Link>
-                        </div>
-                    </article>
-                ))}
-            </div>
+            {loading ? (
+                <div style={{ textAlign: 'center', padding: '4rem 0', color: 'var(--color-text-muted)' }}>Loading posts...</div>
+            ) : (
+                <div className="blog-grid">
+                    {posts.map(post => (
+                        <article key={post.id} className="blog-card">
+                            <div className="blog-img">
+                                <img src={post.image} alt={post.title} />
+                            </div>
+                            <div className="blog-content">
+                                <span className="blog-date">{post.date}</span>
+                                <h3>{post.title}</h3>
+                                <p>{post.excerpt || post.content?.substring(0, 120) + '...'}</p>
+                                <Link to="#" className="read-more">Read More →</Link>
+                            </div>
+                        </article>
+                    ))}
+                </div>
+            )}
 
             <style>{`
                 .blog-page {
